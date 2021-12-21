@@ -16,8 +16,9 @@ func clear() {
 
 func Timer(duration time.Duration) error {
 	clear()
-	msg := fmt.Sprintf("Remaining time: %s", duration)
-	introSpinner, _ := pterm.DefaultSpinner.WithShowTimer(false).WithRemoveWhenDone(true).Start(msg)
+	msg := fmt.Sprintf("Time remaining: %s", duration)
+	// introSpinner, _ := pterm.DefaultSpinner.WithShowTimer(false).WithRemoveWhenDone(true).Start(msg)
+	introSpinner, _ := pterm.DefaultSpinner.Start(msg)
 	stop := time.Now().Add(duration)
 	ticker := time.NewTicker(time.Second)
 	done := make(chan bool)
@@ -25,13 +26,16 @@ func Timer(duration time.Duration) error {
 		for {
 			select {
 			case <-done:
+				msg := fmt.Sprintf("Time elapsed: %s", duration)
+				introSpinner.Success(msg)
 				if err := beeep.Notify(msg, "Time's up!", "assets/information.png"); err != nil {
 					return
 				}
 				return
 			case t := <-ticker.C:
-				remaining := fmt.Sprintf("Remaining time: %s", stop.Sub(t).Round(time.Second))
-				introSpinner.UpdateText(remaining)
+				msg := fmt.Sprintf("Time remaining: %s", stop.Sub(t).Round(time.Second))
+				// s, _ := pterm.DefaultBigText.WithLetters(pterm.NewLettersFromString(remaining)).Srender()
+				introSpinner.UpdateText(msg)
 			}
 		}
 	}()
