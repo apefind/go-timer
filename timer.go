@@ -14,45 +14,35 @@ import (
 	"github.com/pterm/pterm"
 )
 
-func clear() {
+func clearTerm() {
 	print("\033[H\033[2J")
 }
 
-func Timer(duration time.Duration) error {
+func Timer(duration time.Duration) {
 	start := time.Now()
 	stop := time.Now().Add(duration)
-	clear()
-	msg := fmt.Sprintf("Time remaining: %s", duration)
-	// introSpinner, _ := pterm.DefaultSpinner.WithShowTimer(false).WithRemoveWhenDone(true).Start(msg)
-	introSpinner, _ := pterm.DefaultSpinner.Start(msg)
-
+	clearTerm()
+	introSpinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Time remaining: %s", duration))
 	sig := make(chan os.Signal)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sig
-		msg := fmt.Sprintf("Start: %s", start.Format(time.RFC850))
-		introSpinner.Success(msg)
-		msg = fmt.Sprintf("Stop:  %s", time.Now().Format(time.RFC850))
-		introSpinner.Success(msg)
+		stop := time.Now()
+		introSpinner.Success(fmt.Sprintf("Start:          %s", start.Format(time.RFC850)))
+		introSpinner.Success(fmt.Sprintf("Stop:           %s", stop.Format(time.RFC850)))
+		introSpinner.Success(fmt.Sprintf("Total Duration: %s", stop.Sub(start).Round(time.Second)))
 		os.Exit(0)
 	}()
-
 	ticker := time.NewTicker(time.Second)
 	done := make(chan bool)
 	go func() {
 		for {
 			select {
 			case <-done:
-				msg := fmt.Sprintf("Time elapsed: %s", duration)
-				introSpinner.Success(msg)
-				// if err := beeep.Notify(msg, "Time's up!", "assets/information.png"); err != nil {
-				// 	return
-				// }
+				introSpinner.Success(fmt.Sprintf("Time elapsed: %s", duration))
 				return
 			case t := <-ticker.C:
-				msg := fmt.Sprintf("Time remaining: %s", stop.Sub(t).Round(time.Second))
-				// s, _ := pterm.DefaultBigText.WithLetters(pterm.NewLettersFromString(remaining)).Srender()
-				introSpinner.UpdateText(msg)
+				introSpinner.UpdateText(fmt.Sprintf("Time remaining: %s", stop.Sub(t).Round(time.Second)))
 			}
 		}
 	}()
@@ -61,33 +51,26 @@ func Timer(duration time.Duration) error {
 	introSpinner.Stop()
 	done <- true
 	for {
-		if err := beep.Beep(beep.DefaultFreq, beep.DefaultDuration); err != nil {
-			return err
-		}
+		beep.Beep(beep.DefaultFreq, beep.DefaultDuration)
 		time.Sleep(1 * time.Second)
 	}
-	// return nil
-}
-func Usage(cmd string, flags *flag.FlagSet) {
-	fmt.Fprintf(os.Stderr, "\n%s %s -d <duration> command [args ...]\n\n", filepath.Base(os.Args[0]), cmd)
-	fmt.Fprintf(os.Stderr, "\trun a command under time limitation\n\n")
-}
-
-func TimerCmd(args []string) int {
-	var duration time.Duration
-	flags := flag.NewFlagSet("timer", flag.ExitOnError)
-	flags.DurationVar(&duration, "duration", 0*time.Second, "duration")
-	flags.DurationVar(&duration, "d", 0*time.Second, "")
-	flags.Usage = func() { Usage("", flags) }
-	flags.Parse(args)
-	log.Println(duration)
-	if err := Timer(duration); err != nil {
-		log.Println(err)
-	}
-	return 0
 }
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "\n%s <duration>\n", filepath.Base(os.Args[0]))
+		flag.PrintDefaults()
+	}
 	log.SetFlags(0)
-	os.Exit(TimerCmd(os.Args[1:]))
+	flag.Parse()
+	if flag.NArg() != 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+	duration, err := time.ParseDuration(os.Args[1])
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+	Timer(duration)
 }
