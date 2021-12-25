@@ -22,15 +22,17 @@ func Timer(duration time.Duration) {
 	start := time.Now()
 	stop := time.Now().Add(duration)
 	clearTerm()
-	introSpinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Time remaining: %s", duration))
+	pterm.Info.Println(fmt.Sprintf("Start:              %s", start.Format(time.RFC850)))
+	// introSpinner, _ := pterm.DefaultSpinner.WithRemoveWhenDone(true).Start(fmt.Sprintf("Time remaining:            %s", duration))
+	introSpinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Time remaining:            %s", duration))
 	sig := make(chan os.Signal)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sig
 		stop := time.Now()
-		introSpinner.Success(fmt.Sprintf("Start:          %s", start.Format(time.RFC850)))
-		introSpinner.Success(fmt.Sprintf("Stop:           %s", stop.Format(time.RFC850)))
-		introSpinner.Success(fmt.Sprintf("Total Duration: %s", stop.Sub(start).Round(time.Second)))
+		// pterm.Info.Println(fmt.Sprintf("Start:              %s", start.Format(time.RFC850)))
+		pterm.Info.Println(fmt.Sprintf("Stop:               %s", stop.Format(time.RFC850)))
+		pterm.Info.Println(fmt.Sprintf("Total Time elapsed: %s", stop.Sub(start).Round(time.Second)))
 		os.Exit(0)
 	}()
 	ticker := time.NewTicker(time.Second)
@@ -39,10 +41,10 @@ func Timer(duration time.Duration) {
 		for {
 			select {
 			case <-done:
-				introSpinner.Success(fmt.Sprintf("Time elapsed: %s", duration))
+				introSpinner.Success(fmt.Sprintf("Time elapsed:       %s", duration))
 				return
 			case t := <-ticker.C:
-				introSpinner.UpdateText(fmt.Sprintf("Time remaining: %s", stop.Sub(t).Round(time.Second)))
+				introSpinner.UpdateText(fmt.Sprintf("Time remaining:            %s", stop.Sub(t).Round(time.Second)))
 			}
 		}
 	}()
