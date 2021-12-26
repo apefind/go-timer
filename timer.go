@@ -12,6 +12,8 @@ import (
 
 	beep "github.com/gen2brain/beeep"
 	"github.com/pterm/pterm"
+
+	"github.com/eiannone/keyboard"
 )
 
 func clearTerm() {
@@ -23,35 +25,54 @@ func Timer(duration time.Duration) {
 	stop := time.Now().Add(duration)
 	clearTerm()
 	pterm.Info.Println(fmt.Sprintf("Start:              %s", start.Format(time.RFC850)))
-	// introSpinner, _ := pterm.DefaultSpinner.WithRemoveWhenDone(true).Start(fmt.Sprintf("Time remaining:            %s", duration))
-	introSpinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Time remaining:            %s", duration))
+	introSpinner, _ := pterm.DefaultSpinner.WithRemoveWhenDone(true).Start(fmt.Sprintf("Time remaining:            %s", duration))
+	// introSpinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Time remaining:            %s", duration))
 	sig := make(chan os.Signal)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		for {
+			char, _, err := keyboard.GetSingleKey()
+			if err != nil {
+				panic(err)
+			}
+			if char == 'q' {
+				sig <- os.Interrupt
+			}
+		}
+	}()
+
 	go func() {
 		<-sig
 		stop := time.Now()
-		// pterm.Info.Println(fmt.Sprintf("Start:              %s", start.Format(time.RFC850)))
+		clearTerm()
+		pterm.Info.Println(fmt.Sprintf("Start:              %s", start.Format(time.RFC850)))
 		pterm.Info.Println(fmt.Sprintf("Stop:               %s", stop.Format(time.RFC850)))
-		pterm.Info.Println(fmt.Sprintf("Total Time elapsed: %s", stop.Sub(start).Round(time.Second)))
+		pterm.Info.Println(fmt.Sprintf("Total time elapsed: %s", stop.Sub(start).Round(time.Second)))
 		os.Exit(0)
 	}()
+
 	ticker := time.NewTicker(time.Second)
 	done := make(chan bool)
+
 	go func() {
 		for {
 			select {
 			case <-done:
 				introSpinner.Success(fmt.Sprintf("Time elapsed:       %s", duration))
-				return
+				pterm.Info.Println(fmt.Sprintf("Time elapsed:       %s", duration))
+				// return
 			case t := <-ticker.C:
-				introSpinner.UpdateText(fmt.Sprintf("Time remaining:            %s", stop.Sub(t).Round(time.Second)))
+				introSpinner.UpdateText(fmt.Sprintf("Time remaining:         %s", stop.Sub(t).Round(time.Second)))
 			}
 		}
 	}()
+
 	time.Sleep(duration)
 	ticker.Stop()
 	introSpinner.Stop()
 	done <- true
+
 	for {
 		beep.Beep(beep.DefaultFreq, beep.DefaultDuration)
 		time.Sleep(1 * time.Second)
