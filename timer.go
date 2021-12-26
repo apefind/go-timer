@@ -5,19 +5,43 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
 
-	beep "github.com/gen2brain/beeep"
-	"github.com/pterm/pterm"
-
 	"github.com/eiannone/keyboard"
+	"github.com/gen2brain/beeep"
+	"github.com/pterm/pterm"
 )
 
 func clearTerm() {
 	print("\033[H\033[2J")
+}
+
+func captureQuit(sig chan os.Signal) {
+	for {
+		key, _, err := keyboard.GetSingleKey()
+		if err != nil {
+			panic(err)
+		}
+		if key == 'q' {
+			sig <- os.Interrupt
+		} else if key == 0 {
+			sig <- syscall.SIGTERM
+		}
+	}
+}
+
+func beep(sig chan os.Signal) {
+	for {
+		select {
+		case <-sig:
+			return
+		default:
+			beeep.Beep(beeep.DefaultFreq, beeep.DefaultDuration)
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
 
 func Timer(duration time.Duration) {
@@ -28,19 +52,21 @@ func Timer(duration time.Duration) {
 	introSpinner, _ := pterm.DefaultSpinner.WithRemoveWhenDone(true).Start(fmt.Sprintf("Time remaining:            %s", duration))
 	// introSpinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Time remaining:            %s", duration))
 	sig := make(chan os.Signal)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	// signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
-	go func() {
-		for {
-			char, _, err := keyboard.GetSingleKey()
-			if err != nil {
-				panic(err)
-			}
-			if char == 'q' {
-				sig <- os.Interrupt
-			}
-		}
-	}()
+	// go func() {
+	// 	for {
+	// 		key, _, err := keyboard.GetSingleKey()
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		if key == 'q' {
+	// 			sig <- os.Interrupt
+	// 		}
+	// 	}
+	// }()
+
+	go captureQuit(sig)
 
 	go func() {
 		<-sig
@@ -72,11 +98,11 @@ func Timer(duration time.Duration) {
 	ticker.Stop()
 	introSpinner.Stop()
 	done <- true
-
-	for {
-		beep.Beep(beep.DefaultFreq, beep.DefaultDuration)
-		time.Sleep(1 * time.Second)
-	}
+	beep(sig)
+	// for {
+	// 	beep.Beep(beep.DefaultFreq, beep.DefaultDuration)
+	// 	time.Sleep(1 * time.Second)
+	// }
 }
 
 func main() {
