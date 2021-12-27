@@ -14,11 +14,7 @@ import (
 	"github.com/pterm/pterm"
 )
 
-func clearTerm() {
-	print("\033[H\033[2J")
-}
-
-func captureKeyboardQuit(sig chan os.Signal) {
+func keyboardInterrupt(sig chan os.Signal) {
 	for {
 		key, _, err := keyboard.GetSingleKey()
 		if err != nil {
@@ -45,46 +41,31 @@ func beep(sig chan os.Signal) {
 }
 
 func Timer(duration time.Duration) {
-	start := time.Now()
-	stop := time.Now().Add(duration)
-	clearTerm()
-	pterm.Println(fmt.Sprintf("Start:              %s", start.Format(time.RFC850)))
-	introSpinner, _ := pterm.DefaultSpinner.WithRemoveWhenDone(true).Start(fmt.Sprintf("Time remaining:            %s", duration))
-	// introSpinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Time remaining:            %s", duration))
+	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
+	pterm.EnableColor()
+	pterm.Printo(fmt.Sprintf(msg, duration.Round(time.Second)))
+	done := time.Now().Add(duration)
 	sig := make(chan os.Signal)
-	// signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-
-	go captureKeyboardQuit(sig)
-
-	go func() {
-		<-sig
-		clearTerm()
-		pterm.Println(fmt.Sprintf("Start:              %s", start.Format(time.RFC850)))
-		pterm.Println(fmt.Sprintf("Stop:               %s", stop.Format(time.RFC850)))
-		pterm.Println(fmt.Sprintf("Total time elapsed: %s", stop.Sub(start).Round(time.Second)))
-		os.Exit(0)
-	}()
 
 	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	done := make(chan bool)
+	// defer ticker.Stop()
 
-	go func() {
-		for {
-			select {
-			case <-done:
-				introSpinner.Success(fmt.Sprintf("Time elapsed:       %s", duration))
-				pterm.Println(fmt.Sprintf("Time elapsed:       %s", duration))
-			case t := <-ticker.C:
-				introSpinner.UpdateText(fmt.Sprintf("Time remaining:         %s", stop.Sub(t).Round(time.Second)))
+	go keyboardInterrupt(sig)
+
+	beeping := false
+	for {
+		select {
+		case <-sig:
+			pterm.Println("")
+			os.Exit(0)
+		case t := <-ticker.C:
+			pterm.Printo(fmt.Sprintf(msg, done.Sub(t).Round(time.Second)))
+			if !beeping && t.After(done) {
+				go beep(sig)
+				beeping = true
 			}
 		}
-	}()
-
-	time.Sleep(duration)
-	introSpinner.Stop()
-	done <- true
-	beep(sig)
+	}
 }
 
 func main() {
