@@ -40,32 +40,45 @@ func beep(sig chan os.Signal) {
 	}
 }
 
-func Timer(duration time.Duration) {
-	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
+func ptermOutput(output chan string) {
 	pterm.EnableColor()
-	pterm.Printo(fmt.Sprintf(msg, duration.Round(time.Second)))
+	for {
+		select {
+		case s := <-output:
+			pterm.Printo(pterm.Red(s))
+		}
+	}
+}
+
+func Timer(duration time.Duration, sig chan os.Signal, out chan string) {
+	msg := fmt.Sprintf("Timer %s: %%s ", duration.Round(time.Second))
+	out <- fmt.Sprintf(msg, duration.Round(time.Second))
 	done := time.Now().Add(duration)
-	sig := make(chan os.Signal)
-
-	ticker := time.NewTicker(time.Second)
-	// defer ticker.Stop()
-
-	go keyboardInterrupt(sig)
-
 	beeping := false
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-sig:
-			pterm.Println("")
-			os.Exit(0)
+			return
 		case t := <-ticker.C:
-			pterm.Printo(fmt.Sprintf(msg, done.Sub(t).Round(time.Second)))
+			out <- fmt.Sprintf(msg, done.Sub(t).Round(time.Second))
 			if !beeping && t.After(done) {
 				go beep(sig)
 				beeping = true
 			}
 		}
 	}
+}
+
+func PTermTimer(duration time.Duration) {
+	sig := make(chan os.Signal)
+	go keyboardInterrupt(sig)
+	out := make(chan string)
+	go ptermOutput(out)
+	Timer(duration, sig, out)
+	pterm.Println("")
+	os.Exit(0)
 }
 
 func main() {
@@ -85,5 +98,5 @@ func main() {
 		log.Println(err)
 		os.Exit(1)
 	}
-	Timer(duration)
+	PTermTimer(duration)
 }
