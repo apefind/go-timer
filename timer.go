@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
@@ -13,6 +14,14 @@ import (
 	"github.com/gen2brain/beeep"
 	"github.com/pterm/pterm"
 )
+
+type PTermWriter struct {
+}
+
+func (w *PTermWriter) Write(p []byte) (n int, err error) {
+	pterm.Printo(string(p[:]))
+	return len(p), nil
+}
 
 func keyboardInterrupt(sig chan os.Signal) {
 	for {
@@ -51,7 +60,7 @@ func ptermOutput(output chan string) {
 	}
 }
 
-func Timer(duration time.Duration, interrupt chan os.Signal, output chan string) {
+func TimerC(duration time.Duration, interrupt chan os.Signal, output chan string) {
 	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
 	output <- fmt.Sprintf(msg, duration.Round(time.Second))
 	done := time.Now().Add(duration)
@@ -72,12 +81,42 @@ func Timer(duration time.Duration, interrupt chan os.Signal, output chan string)
 	}
 }
 
+func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) error {
+	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
+	_, err := w.WriteString(fmt.Sprintf(msg, duration.Round(time.Second)))
+	if err != nil {
+		return err
+	}
+	w.Flush()
+	done := time.Now().Add(duration)
+	beeping := false
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-interrupt:
+			return nil
+		case t := <-ticker.C:
+			_, err := w.WriteString(fmt.Sprintf(msg, done.Sub(t).Round(time.Second)))
+			if err != nil {
+				return err
+			}
+			w.Flush()
+			if !beeping && t.After(done) {
+				go beep(interrupt)
+				beeping = true
+			}
+		}
+	}
+}
+
 func PTermTimer(duration time.Duration) {
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
 	output := make(chan string)
 	go ptermOutput(output)
-	Timer(duration, interrupt, output)
+	w := &PTermWriter{}
+	Timer(duration, interrupt, bufio.NewWriter(w))
 	pterm.Println("")
 	os.Exit(0)
 }
