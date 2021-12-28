@@ -49,38 +49,6 @@ func beep(interrupt chan os.Signal) {
 	}
 }
 
-func ptermOutput(output chan string) {
-	pterm.EnableColor()
-	for {
-		select {
-		case s := <-output:
-			pterm.Printo(s)
-			// pterm.Printo(pterm.Red(s))
-		}
-	}
-}
-
-func TimerC(duration time.Duration, interrupt chan os.Signal, output chan string) {
-	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
-	output <- fmt.Sprintf(msg, duration.Round(time.Second))
-	done := time.Now().Add(duration)
-	beeping := false
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-interrupt:
-			return
-		case t := <-ticker.C:
-			output <- fmt.Sprintf(msg, done.Sub(t).Round(time.Second))
-			if !beeping && t.After(done) {
-				go beep(interrupt)
-				beeping = true
-			}
-		}
-	}
-}
-
 func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) error {
 	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
 	_, err := w.WriteString(fmt.Sprintf(msg, duration.Round(time.Second)))
@@ -111,10 +79,9 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 }
 
 func PTermTimer(duration time.Duration) {
+	pterm.EnableColor()
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
-	output := make(chan string)
-	go ptermOutput(output)
 	w := &PTermWriter{}
 	Timer(duration, interrupt, bufio.NewWriter(w))
 	pterm.Println("")
