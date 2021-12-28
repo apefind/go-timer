@@ -16,10 +16,22 @@ import (
 )
 
 type PTermWriter struct {
+	// color *pterm.Color
+	style *pterm.Style
+}
+
+func NewPTermWriter(style *pterm.Style) *PTermWriter {
+	return &PTermWriter{
+		style: style,
+	}
 }
 
 func (w *PTermWriter) Write(p []byte) (n int, err error) {
-	pterm.Printo(string(p[:]))
+	if w.style != nil {
+		pterm.Printo(w.style.Sprint(string(p[:])))
+	} else {
+		pterm.Printo(string(p[:]))
+	}
 	return len(p), nil
 }
 
@@ -78,32 +90,51 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 	}
 }
 
-func PTermTimer(duration time.Duration) {
+func PTermTimer(duration time.Duration) error {
 	pterm.EnableColor()
+	defer pterm.Println("")
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
-	w := &PTermWriter{}
-	Timer(duration, interrupt, bufio.NewWriter(w))
-	pterm.Println("")
-	os.Exit(0)
+	// style := pterm.NewStyle(pterm.FgRed, pterm.Bold)
+	style := pterm.ThemeDefault.InfoMessageStyle
+	w := NewPTermWriter(&style)
+	// w := NewPTermWriter(nil)
+	return Timer(duration, interrupt, bufio.NewWriter(w))
+}
+
+func StdoutTimer(duration time.Duration) error {
+	interrupt := make(chan os.Signal)
+	go keyboardInterrupt(interrupt)
+	return Timer(duration, interrupt, bufio.NewWriter(os.Stdout))
 }
 
 func main() {
+	log.SetFlags(0)
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s <duration>\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "Usage: %s -o [pterm|stdout] <duration>\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
-	log.SetFlags(0)
+	var output string
+	flag.StringVar(&output, "o", "pterm", "pterm or stdout")
 	flag.Parse()
-	if flag.NArg() != 1 {
+	if flag.NArg() < 1 {
 		flag.Usage()
 		os.Exit(1)
 	}
-	duration, err := time.ParseDuration(os.Args[1])
+	duration, err := time.ParseDuration(flag.Args()[0])
 	if err != nil {
 		flag.Usage()
 		log.Println(err)
 		os.Exit(1)
 	}
-	PTermTimer(duration)
+	if output == "pterm" {
+		err = PTermTimer(duration)
+	} else {
+		err = StdoutTimer(duration)
+	}
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
