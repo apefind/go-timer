@@ -45,14 +45,15 @@ func ptermOutput(output chan string) {
 	for {
 		select {
 		case s := <-output:
-			pterm.Printo(pterm.Red(s))
+			pterm.Printo(s)
+			// pterm.Printo(pterm.Red(s))
 		}
 	}
 }
 
-func Timer(duration time.Duration, interrupt chan os.Signal, out chan string) {
-	msg := fmt.Sprintf("Timer %s: %%s ", duration.Round(time.Second))
-	out <- fmt.Sprintf(msg, duration.Round(time.Second))
+func Timer(duration time.Duration, interrupt chan os.Signal, output chan string) {
+	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
+	output <- fmt.Sprintf(msg, duration.Round(time.Second))
 	done := time.Now().Add(duration)
 	beeping := false
 	ticker := time.NewTicker(time.Second)
@@ -62,7 +63,7 @@ func Timer(duration time.Duration, interrupt chan os.Signal, out chan string) {
 		case <-interrupt:
 			return
 		case t := <-ticker.C:
-			out <- fmt.Sprintf(msg, done.Sub(t).Round(time.Second))
+			output <- fmt.Sprintf(msg, done.Sub(t).Round(time.Second))
 			if !beeping && t.After(done) {
 				go beep(interrupt)
 				beeping = true
@@ -74,9 +75,9 @@ func Timer(duration time.Duration, interrupt chan os.Signal, out chan string) {
 func PTermTimer(duration time.Duration) {
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
-	out := make(chan string)
-	go ptermOutput(out)
-	Timer(duration, interrupt, out)
+	output := make(chan string)
+	go ptermOutput(output)
+	Timer(duration, interrupt, output)
 	pterm.Println("")
 	os.Exit(0)
 }
