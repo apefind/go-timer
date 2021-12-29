@@ -62,8 +62,7 @@ func beep(interrupt chan os.Signal) {
 
 func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) error {
 	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
-	_, err := w.WriteString(fmt.Sprintf(msg, duration.Round(time.Second)))
-	if err != nil {
+	if _, err := w.WriteString(fmt.Sprintf(msg, duration.Round(time.Second))); err != nil {
 		return err
 	}
 	w.Flush()
@@ -76,8 +75,7 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 		case <-interrupt:
 			return nil
 		case t := <-ticker.C:
-			_, err := w.WriteString(fmt.Sprintf(msg, done.Sub(t).Round(time.Second)))
-			if err != nil {
+			if _, err := w.WriteString(fmt.Sprintf(msg, done.Sub(t).Round(time.Second))); err != nil {
 				return err
 			}
 			w.Flush()
@@ -111,7 +109,7 @@ func main() {
 	}
 	var output, style string
 	flag.StringVar(&output, "o", "pterm", "pterm or stdout")
-	flag.StringVar(&style, "s", "", "pterm style")
+	flag.StringVar(&style, "s", "", "pterm primary style")
 	flag.Parse()
 	if flag.NArg() < 1 {
 		flag.Usage()
