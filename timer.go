@@ -16,7 +16,6 @@ import (
 )
 
 type PTermWriter struct {
-	// color *pterm.Color
 	style *pterm.Style
 }
 
@@ -90,16 +89,12 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 	}
 }
 
-func PTermTimer(duration time.Duration) error {
+func PTermTimer(duration time.Duration, style *pterm.Style) error {
 	pterm.EnableColor()
 	defer pterm.Println("")
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
-	// style := pterm.NewStyle(pterm.FgRed, pterm.Bold)
-	style := pterm.ThemeDefault.InfoMessageStyle
-	w := NewPTermWriter(&style)
-	// w := NewPTermWriter(nil)
-	return Timer(duration, interrupt, bufio.NewWriter(w))
+	return Timer(duration, interrupt, bufio.NewWriter(NewPTermWriter(style)))
 }
 
 func StdoutTimer(duration time.Duration) error {
@@ -114,8 +109,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: %s -o [pterm|stdout] <duration>\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
-	var output string
+	var output, style string
 	flag.StringVar(&output, "o", "pterm", "pterm or stdout")
+	flag.StringVar(&style, "s", "", "pterm style")
 	flag.Parse()
 	if flag.NArg() < 1 {
 		flag.Usage()
@@ -128,7 +124,12 @@ func main() {
 		os.Exit(1)
 	}
 	if output == "pterm" {
-		err = PTermTimer(duration)
+		if style == "" {
+			err = PTermTimer(duration, nil)
+		} else {
+			err = PTermTimer(duration, &pterm.ThemeDefault.PrimaryStyle)
+		}
+
 	} else {
 		err = StdoutTimer(duration)
 	}
