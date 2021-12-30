@@ -34,6 +34,18 @@ func (w *PTermWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+type FileWriter struct {
+	*os.File
+}
+
+func NewFileWriter(w *os.File) *FileWriter {
+	return &FileWriter{w}
+}
+
+func (w FileWriter) Write(p []byte) (n int, err error) {
+	return w.WriteString(string(p[:]) + "\n")
+}
+
 func keyboardInterrupt(sig chan os.Signal) {
 	for {
 		key, _, err := keyboard.GetSingleKey()
@@ -48,18 +60,6 @@ func keyboardInterrupt(sig chan os.Signal) {
 	}
 }
 
-func beep(interrupt chan os.Signal) {
-	for {
-		select {
-		case <-interrupt:
-			return
-		default:
-			beeep.Beep(beeep.DefaultFreq, beeep.DefaultDuration)
-			time.Sleep(1 * time.Second)
-		}
-	}
-}
-
 func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) error {
 	msg := fmt.Sprintf("Timer %s: %%s", duration.Round(time.Second))
 	if _, err := w.WriteString(fmt.Sprintf(msg, duration.Round(time.Second))); err != nil {
@@ -67,7 +67,6 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 	}
 	w.Flush()
 	done := time.Now().Add(duration)
-	beeping := false
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
@@ -79,9 +78,8 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 				return err
 			}
 			w.Flush()
-			if !beeping && t.After(done) {
-				go beep(interrupt)
-				beeping = true
+			if t.After(done) {
+				beeep.Beep(beeep.DefaultFreq, beeep.DefaultDuration)
 			}
 		}
 	}
@@ -98,7 +96,7 @@ func PTermTimer(duration time.Duration, style *pterm.Style) error {
 func StdoutTimer(duration time.Duration) error {
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
-	return Timer(duration, interrupt, bufio.NewWriter(os.Stdout))
+	return Timer(duration, interrupt, bufio.NewWriter(NewFileWriter(os.Stdout)))
 }
 
 func main() {
@@ -108,7 +106,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 	var output, style string
-	flag.StringVar(&output, "o", "pterm", "pterm or stdout")
+	flag.StringVar(&output, "o", "pterm", "output = pterm or stdout")
 	flag.StringVar(&style, "s", "", "pterm primary style")
 	flag.Parse()
 	if flag.NArg() < 1 {
@@ -127,7 +125,6 @@ func main() {
 		} else {
 			err = PTermTimer(duration, &pterm.ThemeDefault.PrimaryStyle)
 		}
-
 	} else {
 		err = StdoutTimer(duration)
 	}
