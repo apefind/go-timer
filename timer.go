@@ -11,25 +11,27 @@ import (
 	"time"
 
 	"github.com/eiannone/keyboard"
-	"github.com/gen2brain/beeep"
+	beep "github.com/gen2brain/beeep"
 	"github.com/pterm/pterm"
 )
 
 type PTermWriter struct {
+	area  *pterm.AreaPrinter
 	style *pterm.Style
 }
 
-func NewPTermWriter(style *pterm.Style) *PTermWriter {
+func NewPTermWriter(area *pterm.AreaPrinter, style *pterm.Style) *PTermWriter {
 	return &PTermWriter{
+		area:  area,
 		style: style,
 	}
 }
 
 func (w *PTermWriter) Write(p []byte) (n int, err error) {
 	if w.style != nil {
-		pterm.Printo(w.style.Sprint(string(p[:])))
+		w.area.Update(w.style.Sprint(string(p[:])))
 	} else {
-		pterm.Printo(string(p[:]))
+		w.area.Update(string(p[:]))
 	}
 	return len(p), nil
 }
@@ -42,7 +44,7 @@ func NewFileWriter(w *os.File) *FileWriter {
 	return &FileWriter{w}
 }
 
-func (w FileWriter) Write(p []byte) (n int, err error) {
+func (w FileWriter) Write(p []byte) (int, error) {
 	return w.WriteString(string(p[:]) + "\n")
 }
 
@@ -79,7 +81,7 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 			}
 			w.Flush()
 			if t.After(done) {
-				beeep.Beep(beeep.DefaultFreq, beeep.DefaultDuration)
+				beep.Beep(beep.DefaultFreq, beep.DefaultDuration)
 			}
 		}
 	}
@@ -87,10 +89,14 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 
 func PTermTimer(duration time.Duration, style *pterm.Style) error {
 	pterm.EnableColor()
-	defer pterm.Println("")
+	area, err := pterm.DefaultArea.Start()
+	if err != nil {
+		return err
+	}
+	defer area.Stop()
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
-	return Timer(duration, interrupt, bufio.NewWriter(NewPTermWriter(style)))
+	return Timer(duration, interrupt, bufio.NewWriter(NewPTermWriter(area, style)))
 }
 
 func StdoutTimer(duration time.Duration) error {
