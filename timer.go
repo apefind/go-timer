@@ -15,39 +15,6 @@ import (
 	"github.com/pterm/pterm"
 )
 
-type PTermWriter struct {
-	area  *pterm.AreaPrinter
-	style *pterm.Style
-}
-
-func NewPTermWriter(area *pterm.AreaPrinter, style *pterm.Style) *PTermWriter {
-	return &PTermWriter{
-		area:  area,
-		style: style,
-	}
-}
-
-func (w *PTermWriter) Write(p []byte) (n int, err error) {
-	if w.style != nil {
-		w.area.Update(w.style.Sprint(string(p[:])))
-	} else {
-		w.area.Update(string(p[:]))
-	}
-	return len(p), nil
-}
-
-type FileWriter struct {
-	*os.File
-}
-
-func NewFileWriter(w *os.File) *FileWriter {
-	return &FileWriter{w}
-}
-
-func (w FileWriter) Write(p []byte) (int, error) {
-	return w.WriteString(string(p[:]) + "\n")
-}
-
 func keyboardInterrupt(sig chan os.Signal) {
 	for {
 		key, _, err := keyboard.GetSingleKey()
@@ -87,6 +54,45 @@ func Timer(duration time.Duration, interrupt chan os.Signal, w *bufio.Writer) er
 	}
 }
 
+type FileWriter struct {
+	*os.File
+}
+
+func NewFileWriter(w *os.File) *FileWriter {
+	return &FileWriter{w}
+}
+
+func (w FileWriter) Write(p []byte) (int, error) {
+	return w.WriteString(string(p[:]) + "\n")
+}
+
+func StdoutTimer(duration time.Duration) error {
+	interrupt := make(chan os.Signal)
+	go keyboardInterrupt(interrupt)
+	return Timer(duration, interrupt, bufio.NewWriter(NewFileWriter(os.Stdout)))
+}
+
+type PTermWriter struct {
+	area  *pterm.AreaPrinter
+	style *pterm.Style
+}
+
+func NewPTermWriter(area *pterm.AreaPrinter, style *pterm.Style) *PTermWriter {
+	return &PTermWriter{
+		area:  area,
+		style: style,
+	}
+}
+
+func (w *PTermWriter) Write(p []byte) (n int, err error) {
+	if w.style != nil {
+		w.area.Update(w.style.Sprint(string(p[:])))
+	} else {
+		w.area.Update(string(p[:]))
+	}
+	return len(p), nil
+}
+
 func PTermTimer(duration time.Duration, style *pterm.Style) error {
 	pterm.EnableColor()
 	area, err := pterm.DefaultArea.Start()
@@ -97,12 +103,6 @@ func PTermTimer(duration time.Duration, style *pterm.Style) error {
 	interrupt := make(chan os.Signal)
 	go keyboardInterrupt(interrupt)
 	return Timer(duration, interrupt, bufio.NewWriter(NewPTermWriter(area, style)))
-}
-
-func StdoutTimer(duration time.Duration) error {
-	interrupt := make(chan os.Signal)
-	go keyboardInterrupt(interrupt)
-	return Timer(duration, interrupt, bufio.NewWriter(NewFileWriter(os.Stdout)))
 }
 
 func main() {
