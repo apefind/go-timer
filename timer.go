@@ -13,6 +13,12 @@ import (
 	"github.com/eiannone/keyboard"
 	beep "github.com/gen2brain/beeep"
 	"github.com/pterm/pterm"
+
+	"fyne.io/fyne/theme"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/widget"
 )
 
 func keyboardInterrupt(sig chan os.Signal) {
@@ -105,6 +111,35 @@ func PTermTimer(duration time.Duration, style *pterm.Style) error {
 	return Timer(duration, interrupt, bufio.NewWriter(NewPTermWriter(area, style)))
 }
 
+type FyneWriter struct {
+	label *widget.Label
+}
+
+func NewFyneWriter(label *widget.Label) *FyneWriter {
+	return &FyneWriter{
+		label: label,
+	}
+}
+
+func (w *FyneWriter) Write(p []byte) (n int, err error) {
+	w.label.SetText(string(p[:]))
+	return len(p), nil
+}
+
+func FyneTimer(duration time.Duration, style *pterm.Style) error {
+	interrupt := make(chan os.Signal)
+	app := app.New()
+	win := app.NewWindow("Timer")
+	label := widget.NewLabel("")
+	quit := widget.NewButtonWithIcon("", theme.CancelIcon(), func() { interrupt <- os.Interrupt; app.Quit() })
+	grid := container.New(layout.NewHBoxLayout(), label, quit)
+	win.SetContent(grid)
+	win.Show()
+	go Timer(duration, interrupt, bufio.NewWriter(NewFyneWriter(label)))
+	app.Run()
+	return nil
+}
+
 func main() {
 	log.SetFlags(0)
 	flag.Usage = func() {
@@ -112,7 +147,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 	var output, style string
-	flag.StringVar(&output, "o", "pterm", "output = pterm or stdout")
+	flag.StringVar(&output, "o", "pterm", "output = fyne, pterm or stdout")
 	flag.StringVar(&style, "s", "", "pterm primary style")
 	flag.Parse()
 	if flag.NArg() < 1 {
@@ -131,6 +166,9 @@ func main() {
 		} else {
 			err = PTermTimer(duration, &pterm.ThemeDefault.PrimaryStyle)
 		}
+
+	} else if output == "fyne" {
+		err = FyneTimer(duration, nil)
 	} else {
 		err = StdoutTimer(duration)
 	}
